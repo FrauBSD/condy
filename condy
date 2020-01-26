@@ -3,33 +3,44 @@
 #
 # $Title: Script for managing conky and desktop wallpaper $
 # $Copyright: 2019-2020 Devin Teske. All rights reserved. $
-# $FrauBSD: condy/condy 2020-01-25 18:26:45 -0800 freebsdfrau $
+# $FrauBSD: condy/condy 2020-01-25 20:48:56 -0800 freebsdfrau $
 #
 ############################################################ ENVIRONMENT
-
-#
-# Where to find landscape wallpaper
-# NB: Relative paths are in home directory
-#
-: "${WALLPAPER:=Wallpaper}"
-
-#
-# Where to find portrait wallpaper
-#
-: "${TALLPAPER:=Tallpaper}"
-
-#
-# Debugging
-#
-: "${CONDY_DEBUG:=0}"
-: "${CONDY_LOG:=.condy.log}"
 
 #
 # X display
 #
 : "${DISPLAY:=:0}"
 
+############################################################ DEFAULTS
+
+#
+# Config file(s)
+# NB: Can be used to override below CONFIGURATION settings
+#
+DEFAULT_CONDY_CONFIG=/etc/condy.conf
+DEFAULT_CONDY_USER_CONFIG=.condy.conf
+
+#
+# Debugging
+# NB: Paths are relative to home directory
+#
+DEFAULT_CONDY_LOG=.condy.log
+DEFAULT_DEBUG=0
+
 ############################################################ CONFIGURATION
+
+#
+# Where to find landscape (wider than tall) wallpaper
+# NB: Paths are relative to home directory
+#
+WALLPAPER=Wallpaper
+
+#
+# Where to find portrait (taller than wide) wallpaper
+# NB: Paths are relative to home directory
+#
+TALLPAPER=Tallpaper
 
 #
 # Conky configuration file(s)
@@ -41,7 +52,7 @@ CONKY_KDE_CONFIG=theme/conky/ident-kde-vmware.conkyrc
 #
 # How often (in seconds) to rotate the desktop
 # NB: Rotation is to a random image in WALLPAPER/TALLPAPER directory
-# MB: Should be divisible by CONDY_DESKTOP_CHECK
+# MB: Should be evenly divisible by CONDY_DESKTOP_CHECK
 #
 CONDY_DESKTOP_INTERVAL=600 # 10 minutes
 CONDY_DESKTOP_CHECK=5 # seconds
@@ -55,7 +66,7 @@ DBUS_TIMEOUT=60
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 1.0.2 $'
+VERSION='$Version: 2.0 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -68,13 +79,16 @@ FAILURE=1
 #
 # Command-line options
 #
-DEBUG=$CONDY_DEBUG		# -d
-QUIET=				# -q
-UPDATE=				# -u
+CONDY_CONFIG="$DEFAULT_CONDY_CONFIG"		# -s file
+CONDY_LOG="$DEFAULT_CONDY_LOG"			# -l file
+CONDY_USER_CONFIG="$DEFAULT_CONDY_USER_CONFIG"	# -u file
+DEBUG=$DEFAULT_DEBUG				# -d
+QUIET=						# -q
+UPDATE=						# -u
 
 #
-# Wait for DBus registry elements
-# NB: Any one will trigger start or timeout
+# DBus registry elements
+# NB: Any one will trigger start, else timeout
 #
 DBUS_GNOME=org.gnome.SessionManager
 DBUS_KDE=org.kde.kuiserver
@@ -84,25 +98,25 @@ DBUS_WAIT_FOR="
 " # END-QUOTE
 
 #
-# dbus
+# DBus regex
 #
-DBUS_GNOME_RE='\<'"$( echo "$DBUS_GNOME" | awk 'gsub(/\./, "\\.")||1' )"'\>'
-DBUS_KDE_RE='\<'"$( echo "$DBUS_KDE" | awk 'gsub(/\./, "\\.")||1' )"'\>'
-DBUS_WAIT_RE='\<\('"$( echo "$DBUS_WAIT_FOR" | xargs -n 1 | awk '
+DBUS_GNOME_RE="\\<$( echo "$DBUS_GNOME" | awk 'gsub(/\./, "\\.")||1' )\\>"
+DBUS_KDE_RE="\\<$( echo "$DBUS_KDE" | awk 'gsub(/\./, "\\.")||1' )\\>"
+DBUS_WAIT_RE="\\<\\($( echo "$DBUS_WAIT_FOR" | xargs -n 1 | awk '
 	{
 		re = $0
 		gsub(/\./, "\\.", re)
 		buf = buf "\\|" re
 	}
 	END { print substr(buf, 3) }
-' )"'\)\>'
+' )\\)\\>"
 
 #
-# pgrep
+# pgrep regex
 #
-CONKY_RE="^conky"
-CONDY_STARTUP_RE="^/bin/sh .*CONDY_STARTUP"
 CONDY_DESKTOP_WORKER_RE="^/bin/sh .*CONDY_DESKTOP_WORKER"
+CONDY_STARTUP_RE="^/bin/sh .*CONDY_STARTUP"
+CONKY_RE="^conky"
 
 ############################################################ EXPORTED FUNCTIONS
 
@@ -146,12 +160,62 @@ fi # ! DEBUG
 
 dbus_listnames()
 {
-	dbus-send --session --dest=org.freedesktop.DBus --type=method_call \
-		--print-reply /org/freedesktop/DBus \
+	dbus-send \
+		--session \
+		--dest=org.freedesktop.DBus \
+		--type=method_call \
+		--print-reply \
+		/org/freedesktop/DBus \
 		org.freedesktop.DBus.ListNames
+}
+
+load_configs()
+{
+	local config
+	local log=/dev/null
+	local note
+	local path
+	local var
+
+	# Load default configuration settings
+	load_defaults
+
+	# Load configuration files
+	[ $DEBUG -lt 1 ] || log="$CONDY_LOG"
+	for config in \
+		"$CONDY_CONFIG" \
+		"$CONDY_USER_CONFIG" \
+	; do
+		[ -f "$config" ] || continue
+		log "Loading %s" "$config"
+		. "$config" >> "$log" 2>&1 || : errors ignored
+	done
+
+	for var in WALLPAPER TALLPAPER; do
+		eval path=\"\$$var\"
+		note=exists
+		[ -e "$path" ] || note="does not exist"
+		log -d 2 "$var=[%s] %s" "$path" "$note"
+	done
+
+	return $SUCCESS
 }
 EOF
 FUNCTIONS=$( cat <&9 )
+exec 9<<EOF
+load_defaults()
+{
+	log -d 2 "Loading config defaults"
+	WALLPAPER=$WALLPAPER
+	TALLPAPER=$TALLPAPER
+	CONDY_DESKTOP_INTERVAL=$CONDY_DESKTOP_INTERVAL
+	CONDY_DESKTOP_CHECK=$CONDY_DESKTOP_CHECK
+	CONDY_DESKTOP_TIMEOUT=$CONDY_DESKTOP_TIMEOUT
+	DBUS_TIMEOUT=$DBUS_TIMEOUT
+}
+EOF
+FUNCTIONS="$FUNCTIONS
+$( cat <&9 )"
 eval "$FUNCTIONS"
 
 ############################################################ FUNCTIONS
@@ -159,9 +223,9 @@ eval "$FUNCTIONS"
 usage()
 {
 	local fmt="$1"
-	local pgmfmt="Usage: %s [-dhqv] {%s}\n"
+	local pgmfmt="Usage: %s [OPTIONS] {%s}\n"
 	local argfmt="\t%-10s %s\n"
-	local optfmt="\t%-5s %s\n"
+	local optfmt="\t%-10s %s\n"
 	exec >&2
 	if [ "$fmt" ]; then
 		shift 1 # fmt
@@ -182,7 +246,13 @@ usage()
 	printf "$optfmt" "" \
 		"Can be specified multiple (up to 5) times."
 	printf "$optfmt" "-h" "Print usage statement and exit."
+	printf "$optfmt" "-l file" \
+		"Debug log file. Default \`$DEFAULT_CONDY_LOG'."
 	printf "$optfmt" "-q" "Quiet. Hide informational messages."
+	printf "$optfmt" "-s file" \
+		"System config file. Default \`$DEFAULT_CONDY_CONFIG'."
+	printf "$optfmt" "-u file" \
+		"User config file. Default \`$DEFAULT_CONDY_USER_CONFIG'."
 	printf "$optfmt" "-v" "Print version and exit."
 	die
 }
@@ -210,6 +280,25 @@ start()
 	fi
 
 	#
+	# Load configuration files
+	#
+	load_configs
+
+	#
+	# export variables required by backgrounded processes
+	#
+	export CONDY_DESKTOP_CHECK CONDY_DESKTOP_INTERVAL CONDY_DESKTOP_TIMEOUT
+	export CONDY_DESKTOP_WORKER CONDY_DESKTOP_WORKER_RE
+	export CONDY_CONFIG CONDY_USER_CONFIG CONDY_LOG
+	export CONDY_STARTUP CONDY_STARTUP_RE
+	export CONKY_CONFIG CONKY_GNOME_CONFIG CONKY_KDE_CONFIG CONKY_RE
+	export DBUS_GNOME_RE DBUS_KDE_RE DBUS_WAIT_RE DBUS_TIMEOUT
+	export DEBUG QUIET TALLPAPER WALLPAPER
+	export DISPLAY
+	export FUNCTIONS
+	export SUCCESS FAILURE
+
+	#
 	# conky
 	#
 	if pids=$( pgrep "$CONKY_RE" ); then
@@ -232,34 +321,17 @@ start()
 
 start_conky()
 {
-	local logfile="$CONDY_LOG"
-	[ $DEBUG -gt 0 ] || logfile=/dev/null
-	export CONDY_LOG CONDY_STARTUP CONDY_STARTUP_RE
-	export CONKY_CONFIG CONKY_GNOME_CONFIG CONKY_KDE_CONFIG CONKY_RE
-	export DBUS_GNOME_RE DBUS_KDE_RE
-	export DBUS_TIMEOUT DBUS_WAIT_RE
-	export DEBUG QUIET TALLPAPER WALLPAPER
-	export DISPLAY
-	export FUNCTIONS
-	export SUCCESS FAILURE
-	/bin/sh -c ': condy ; eval "$CONDY_STARTUP"' >> "$logfile" 2>&1 &
+	local log="$CONDY_LOG"
+	[ $DEBUG -gt 0 ] || log=/dev/null
+	/bin/sh -c ': condy ; eval "$CONDY_STARTUP"' >> "$log" 2>&1 &
 	emit "conky starting (pid $!)"
 }
 
 start_desktop_worker()
 {
-	local logfile="$CONDY_LOG"
-	[ $DEBUG -gt 0 ] || logfile=/dev/null
-	export CONDY_DESKTOP_INTERVAL CONDY_DESKTOP_TIMEOUT CONDY_DESKTOP_CHECK
-	export CONDY_DESKTOP_WORKER CONDY_DESKTOP_WORKER_RE
-	export CONDY_LOG CONDY_STARTUP_RE
-	export CONKY_RE
-	export DBUS_TIMEOUT DBUS_WAIT_RE
-	export DEBUG QUIET TALLPAPER WALLPAPER
-	export DISPLAY
-	export FUNCTIONS
-	export SUCCESS FAILURE
-	/bin/sh -c ': condy ; eval "$CONDY_DESKTOP_WORKER"' >> "$logfile" 2>&1 &
+	local log="$CONDY_LOG"
+	[ $DEBUG -gt 0 ] || log=/dev/null
+	/bin/sh -c ': condy ; eval "$CONDY_DESKTOP_WORKER"' >> "$log" 2>&1 &
 	emit "started desktop worker (pid $!)"
 }
 
@@ -539,12 +611,14 @@ logres()
 
 reload_desktop()
 {
-	local dir="$WALLPAPER"
+	local dir
+
+	# Load configuration files
+	load_configs
 
 	# Determine if we should use portrait or landscape wallpaper
-	if getres; then
-		[ ! "$USE_TALLPAPER" ] || dir="$TALLPAPER"
-	fi
+	dir="$WALLPAPER"
+	! getres || [ ! "$USE_TALLPAPER" ] || dir="$TALLPAPER"
 
 	# Get a list of installed wallpapers
 	wallpapers=$( find "$dir" -mindepth 1 -maxdepth 1 -type f ) ||
@@ -693,13 +767,19 @@ CONDY_DESKTOP_WORKER=$( cat <&9 )
 
 ############################################################ MAIN
 
+cd # home directory
+
 #
 # Process command-line options
 #
-while getopts dhqv flag; do
+while getopts dhl:qs:u:v flag; do
 	case "$flag" in
 	d) DEBUG=$(( $DEBUG + 1 )) ;;
+	l) CONDY_LOG="$OPTARG"
+		[ $DEBUG -gt 0 ] || DEBUG=1 ;;
 	q) QUIET=1 ;;
+	s) CONDY_CONFIG="$OPTARG" ;;
+	u) CONDY_USER_CONFIG="$OPTARG" ;;
 	v) VERSION="${VERSION#*: }"
 		echo "${VERSION% $}"
 		exit $SUCCESS
@@ -708,8 +788,6 @@ while getopts dhqv flag; do
 	esac
 done
 shift $(( OPTIND - 1 ))
-
-cd # home directory
 
 #
 # Process command-line argument
