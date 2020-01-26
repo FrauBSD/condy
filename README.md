@@ -1,0 +1,2 @@
+# condy
+conky desktop daemon
