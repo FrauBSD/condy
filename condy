@@ -3,14 +3,14 @@
 #
 # $Title: Script for managing conky and desktop wallpaper $
 # $Copyright: 2019-2020 Devin Teske. All rights reserved. $
-# $FrauBSD: condy/condy 2020-01-25 18:13:19 -0800 freebsdfrau $
+# $FrauBSD: condy/condy 2020-01-25 18:14:59 -0800 freebsdfrau $
 #
 ############################################################ ENVIRONMENT
 
 #
 # Debugging
 #
-: "${CONKY_DEBUG:=0}"
+: "${CONDY_DEBUG:=0}"
 
 #
 # X display
@@ -72,7 +72,7 @@ DBUS_TIMEOUT=60
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 1.0 $'
+VERSION='$Version: 1.0.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -85,7 +85,7 @@ FAILURE=1
 #
 # Command-line options
 #
-DEBUG=$CONKY_DEBUG		# -d
+DEBUG=$CONDY_DEBUG		# -d
 QUIET=				# -q
 UPDATE=				# -u
 
