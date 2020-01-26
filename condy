@@ -1,0 +1,731 @@
+#!/bin/sh
+############################################################ IDENT(1)
+#
+# $Title: Script for managing conky and desktop wallpaper $
+# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $FrauBSD: condy/condy 2020-01-25 17:59:36 -0800 freebsdfrau $
+#
+############################################################ ENVIRONMENT
+
+#
+# Debugging
+#
+: "${CONKY_DEBUG:=0}"
+
+#
+# X display
+#
+: "${DISPLAY:=:0}"
+
+#
+# Where to find landscape wallpaper
+# NB: Relative paths are in home directory
+#
+: "${WALLPAPER:=Wallpaper}"
+
+#
+# Where to find portrait wallpaper
+#
+: "${TALLPAPER:=Tallpaper}"
+
+#
+# Log file(s)
+#
+: "${CONDY_LOG:=.condy.log}"
+
+############################################################ CONFIGURATION
+
+#nohup /bin/sh -c 'dbus-monitor > monitor.$$.log 2>&1' &
+
+#
+# Conky configuration file
+#
+CONKY_CONFIG=theme/conky/ident.conkyrc
+CONKY_GNOME_CONFIG=theme/conky/ident-gnome-vmware.conkyrc
+CONKY_KDE_CONFIG=theme/conky/ident-kde-vmware.conkyrc
+
+#
+# How often (in seconds) to rotate the desktop
+# NB: Rotation is to a random image in WALLPAPER/TALLPAPER directory
+# MB: Should be divisible by CONDY_DESKTOP_CHECK
+#
+CONDY_DESKTOP_INTERVAL=600 # 10 minutes
+CONDY_DESKTOP_CHECK=5 # seconds
+
+#
+# Wait for DBus registry elements
+# NB: Any one will trigger start or timeout
+#
+DBUS_GNOME=org.gnome.SessionManager
+DBUS_KDE=org.kde.kuiserver
+DBUS_WAIT_FOR="
+	$DBUS_GNOME
+	$DBUS_KDE
+" # END-QUOTE
+
+#
+# Timeouts
+# NB: Values are in seconds
+#
+CONDY_DESKTOP_TIMEOUT=10
+DBUS_TIMEOUT=60
+
+############################################################ GLOBALS
+
+VERSION='$Version: 1.0 $'
+
+pgm="${0##*/}" # Program basename
+
+#
+# Global exit status
+#
+SUCCESS=0
+FAILURE=1
+
+#
+# Command-line options
+#
+DEBUG=$CONKY_DEBUG		# -d
+QUIET=				# -q
+UPDATE=				# -u
+
+#
+# dbus
+#
+DBUS_GNOME_RE='\<'"$( echo "$DBUS_GNOME" | awk 'gsub(/\./, "\\.")||1' )"'\>'
+DBUS_KDE_RE='\<'"$( echo "$DBUS_KDE" | awk 'gsub(/\./, "\\.")||1' )"'\>'
+DBUS_WAIT_RE='\<\('"$( echo "$DBUS_WAIT_FOR" | xargs -n 1 | awk '
+	{
+		re = $0
+		gsub(/\./, "\\.", re)
+		buf = buf "\\|" re
+	}
+	END { print substr(buf, 3) }
+' )"'\)\>'
+
+#
+# pgrep
+#
+CONKY_RE="^conky"
+CONDY_STARTUP_RE="^/bin/sh .*CONDY_STARTUP"
+CONDY_DESKTOP_WORKER_RE="^/bin/sh .*CONDY_DESKTOP_WORKER"
+
+############################################################ EXPORTED FUNCTIONS
+
+#
+# FUNCTIONS
+#
+exec 9<<'EOF'
+die(){ log "$@"; exit $FAILURE; }
+emit(){ [ ! "$QUIET" ] || return $SUCCESS; echo "$@"; }
+have(){ type "$@" > /dev/null 2>&1; }
+print(){ [ ! "$QUIET" ] || return $SUCCESS; printf "$@"; }
+
+if [ $DEBUG -gt 0 ]; then
+log()
+{
+	local OPTIND=1 OPTARG flag
+	local debug_min=1
+
+	while getopts d: flag; do
+		case "$flag" in
+		d) debug_min="$OPTARG" ;;
+		*) break
+		esac
+	done
+	shift $(( $OPTIND - 1 ))
+
+	[ $DEBUG -ge $debug_min ] || return $SUCCESS
+
+	local fmt="$1"
+	[ "$fmt" ] || return $SUCCESS
+
+	shift 1 # fmt
+	printf "[%s] $fmt\n" "$( date )" "$@" >> "$CONDY_LOG"
+}
+else
+log()
+{
+	return $SUCCESS
+}
+fi # ! DEBUG
+
+dbus_listnames()
+{
+	dbus-send --session --dest=org.freedesktop.DBus --type=method_call \
+		--print-reply /org/freedesktop/DBus \
+		org.freedesktop.DBus.ListNames
+}
+EOF
+FUNCTIONS=$( cat <&9 )
+eval "$FUNCTIONS"
+
+############################################################ FUNCTIONS
+
+usage()
+{
+	local fmt="$1"
+	local pgmfmt="Usage: %s [-dhqv] {%s}\n"
+	local argfmt="\t%-10s %s\n"
+	local optfmt="\t%-5s %s\n"
+	exec >&2
+	if [ "$fmt" ]; then
+		shift 1 # fmt
+		printf "%s: $fmt\n" "$pgm" "$@"
+	fi
+	printf "$pgmfmt" "$pgm" "start|stop|load|status|restart|reload|refresh"
+	printf "Arguments:\n"
+	printf "$argfmt" "start" "Start conky and desktop worker(s)."
+	printf "$argfmt" "stop" "Stop conky and desktop worker(s)."
+	printf "$argfmt" "load" "Same as restart."
+	printf "$argfmt" "status" \
+		"Display status of conky and desktop worker(s)."
+	printf "$argfmt" "restart" "Restart conky and desktop worker(s)."
+	printf "$argfmt" "reload" "Change desktop wallpaper."
+	printf "$argfmt" "refresh" "Refresh existing desktop wallpaper."
+	printf "Options:\n"
+	printf "$optfmt" "-d" "Enable debugging to \`$CONDY_LOG'."
+	printf "$optfmt" "" \
+		"Can be specified multipled (up to 4) times."
+	printf "$optfmt" "-h" "Print usage statement and exit."
+	printf "$optfmt" "-q" "Quiet. Hide informational messages."
+	printf "$optfmt" "-v" "Print version and exit."
+	die
+}
+
+start()
+{
+	local pids
+
+	#
+	# [Re-]Initialize log file
+	#
+	if [ $DEBUG -gt 0 ]; then
+		emit "Logging to $CONDY_LOG"
+		:> "$CONDY_LOG"
+		log "Condy started"
+		log "DISPLAY=[%s]" "$DISPLAY"
+		if have xauth; then
+			log "xauth list"
+			xauth list >> "$CONDY_LOG"
+		fi
+	fi
+
+	#
+	# conky
+	#
+	if pids=$( pgrep "$CONKY_RE" ); then
+		emit "conky already running (pid ${pids%%[$IFS]*})"
+	else
+		start_conky
+	fi
+
+	#
+	# desktop worker
+	#
+	if pids=$( pgrep -f "$CONDY_DESKTOP_WORKER_RE" ); then
+		emit "desktop worker already running (pid ${pids%%[$IFS]*})"
+	else
+		start_desktop_worker
+	fi
+
+	return $SUCCESS
+}
+
+start_conky()
+{
+	local logfile="$CONDY_LOG"
+	[ $DEBUG -gt 0 ] || logfile=/dev/null
+	export CONDY_LOG CONDY_STARTUP CONDY_STARTUP_RE
+	export CONKY_CONFIG CONKY_GNOME_CONFIG CONKY_KDE_CONFIG CONKY_RE
+	export DBUS_GNOME_RE DBUS_KDE_RE
+	export DBUS_TIMEOUT DBUS_WAIT_RE
+	export DEBUG QUIET TALLPAPER WALLPAPER
+	export DISPLAY
+	export FUNCTIONS
+	export SUCCESS FAILURE
+	/bin/sh -c ': condy ; eval "$CONDY_STARTUP"' >> "$logfile" 2>&1 &
+	emit "conky starting (pid $!)"
+}
+
+start_desktop_worker()
+{
+	local logfile="$CONDY_LOG"
+	[ $DEBUG -gt 0 ] || logfile=/dev/null
+	export CONDY_DESKTOP_INTERVAL CONDY_DESKTOP_TIMEOUT CONDY_DESKTOP_CHECK
+	export CONDY_DESKTOP_WORKER CONDY_DESKTOP_WORKER_RE
+	export CONDY_LOG CONDY_STARTUP_RE
+	export CONKY_RE
+	export DBUS_TIMEOUT DBUS_WAIT_RE
+	export DEBUG QUIET TALLPAPER WALLPAPER
+	export DISPLAY
+	export FUNCTIONS
+	export SUCCESS FAILURE
+	/bin/sh -c ': condy ; eval "$CONDY_DESKTOP_WORKER"' >> "$logfile" 2>&1 &
+	emit "started desktop worker (pid $!)"
+}
+
+stop()
+{
+	local ret=$SUCCESS
+	stop_conky || ret=$FAILURE
+	stop_desktop_worker || ret=$FAILURE
+	return $ret
+}
+
+stop_conky()
+{
+	local pid pids list=
+
+	if pids=$( pgrep "$CONKY_RE" ); then
+		print "Stopping conky"
+		for pid in $pids; do list="$list $pid"; done
+		pkill "$CONKY_RE" > /dev/null 2>&1
+		print ".\nWaiting for pids:%s" "$list"
+		countup=0
+		while [ $countup -le $CONDY_DESKTOP_TIMEOUT ]; do
+			pgrep -q "$CONKY_RE" > /dev/null 2>&1 || break
+			sleep 1
+			countup=$(( $countup + 1 ))
+		done
+		emit .
+	elif pids=$( pgrep -f "$CONDY_STARTUP_RE" ); then
+		print "Stopping conky"
+		for pid in $pids; do list="$list $pid"; done
+		pkill -f "$CONDY_STARTUP_RE" > /dev/null 2>&1
+		print ".\nWaiting for pids:%s" "$list"
+		countup=0
+		while [ $countup -le $CONDY_DESKTOP_TIMEOUT ]; do
+			pgrep -qf "$CONDY_STARTUP_RE" > /dev/null 2>&1 || break
+			sleep 1
+			countup=$(( $countup + 1 ))
+		done
+		emit .
+	else
+		emit "conky not running."
+		return $FAILURE
+	fi
+
+	return $SUCCESS
+}
+
+stop_desktop_worker()
+{
+	local pid pids list=
+
+	if pids=$( pgrep -f "$CONDY_DESKTOP_WORKER_RE" ); then
+		print "Stopping desktop worker"
+		for pid in $pids; do list="$list $pid"; done
+		pkill -f "$CONDY_DESKTOP_WORKER_RE" > /dev/null 2>&1
+		print ".\nWaiting for pids:%s" "$list"
+		countup=0
+		while [ $countup -le $CONDY_DESKTOP_TIMEOUT ]; do
+			pgrep -qf "$CONDY_DESKTOP_WORKER_RE" \
+				> /dev/null 2>&1 || break
+			sleep 1
+			countup=$(( $countup + 1 ))
+		done
+		emit .
+	else
+		emit "desktop worker not running."
+		return $FAILURE
+	fi
+}
+
+status()
+{
+	local pids ret=$SUCCESS
+
+	if pids=$( pgrep "$CONKY_RE" ); then
+		echo "conky running (pid ${pids%%[$IFS]*})"
+	elif pids=$( pgrep "$CONDY_STARTUP_RE" ); then
+		echo "conky starting (pid ${pids%%[$IFS]*})"
+	else
+		echo "conky not running"
+		ret=$FAILURE
+	fi
+
+	if pids=$( pgrep -f "$CONDY_DESKTOP_WORKER_RE" ); then
+		echo "desktop worker running (pid ${pids%%[$IFS]*})"
+	else
+		echo "desktop worker not running"
+		ret=$FAILURE
+	fi
+
+	return $ret
+}
+
+reload()
+{
+	pkill -USR1 -f "$CONDY_DESKTOP_WORKER_RE"
+}
+
+refresh()
+{
+	pkill -USR2 -f "$CONDY_DESKTOP_WORKER_RE"
+}
+
+############################################################ WORKERS
+
+#
+# CONDY_STARTUP
+#
+exec 9<<'EOF'
+################################################## STARTUP GLOBALS
+
+_GNOME=
+_KDE=
+
+################################################## STARTUP FUNCTIONS
+
+eval "$FUNCTIONS"
+
+################################################## STARTUP MAIN
+
+log "Starting conky (pid %u)" $$
+
+#
+# Init
+#
+countup=0
+names=
+log -d 3 "Detecting window manager"
+while : forever ; do
+	names=$( dbus_listnames )
+	echo "$names" | grep -q "$DBUS_WAIT_RE" && break
+	[ $countup -gt $DBUS_TIMEOUT ] && break
+	sleep 5
+	countup=$(( $countup + 5 ))
+done
+if echo "$names" | grep -q "$DBUS_GNOME_RE"; then
+	log -d 3 "Gnome detected"
+	config="$CONKY_GNOME_CONFIG"
+	_GNOME=1
+elif echo "$names" | grep -q "$DBUS_KDE_RE"; then
+	log -d 3 "KDE detected"
+	config="$CONKY_KDE_CONFIG"
+	_KDE=1
+else
+	log -d 3 "Unable to detect window manager"
+	config="$CONKY_CONFIG"
+fi
+
+#
+# Start conky
+#
+log -d 2 'conky -c "%s"' "$config"
+conky -c "$config" > /dev/null 2>&1 &
+
+#
+# Log
+#
+if [ ! "$QUIET" ]; then
+	pids=$( pgrep "$CONKY_RE" )
+	log "Started conky (pid ${pids%%[$IFS]*})"
+fi
+EOF
+CONDY_STARTUP=$( cat <&9 )
+
+#
+# CONDY_DESKTOP_WORKER
+# NB: Rotates Wallpaper every $CONDY_DESKTOP_INTERVAL seconds
+#
+exec 9<<'EOF'
+################################################## DESKTOP GLOBALS
+
+_GNOME=
+_KDE=
+_WM_DETECT=3
+
+#
+# Screen resolution
+#
+HEIGHT=
+WIDTH=
+_HEIGHT=
+_WIDTH=
+
+#
+# Landscape vs Portrait
+#
+USE_TALLPAPER=
+_USE_TALLPAPER=
+
+################################################## DESKTOP FUNCTIONS
+
+eval "$FUNCTIONS"
+
+check_conky()
+{
+	log -d 3 "Check if conky is running"
+	if pgrep -q "$CONKY_RE"; then
+		log -d 3 "conky is running"
+		return 0
+	fi
+	if pgrep -qf "$CONDY_STARTUP_RE"; then
+		log -d 3 "conky is starting"
+		return 1
+	fi
+	log -d 3 "conky not running"
+	return 2
+}
+
+refresh_desktop()
+{
+	[ "$wallpaper" ] || return $SUCCESS
+	log "Setting %s" "$wallpaper"
+	hsetroot -fill "$wallpaper" ||
+		log "Unable to set %s" "$wallpaper"
+}
+
+getres()
+{
+	local size=
+	local debug=
+
+	[ $DEBUG -gt 0 ] && debug='2>> "$CONDY_LOG"'
+
+	USE_TALLPAPER=
+
+	# Try to get the current resolution
+	if have xwininfo; then
+		log -d 3 "Getting current resolution with xwininfo"
+		if ! size=$( eval xwininfo -root $debug ); then
+			log -d 4 "xwininfo failed"
+			return $FAILURE
+		fi
+		size=$( echo "$size" | awk '
+			$1 == "Width:" { width = $2 }
+			$1 == "Height:" { height = $2 }
+			END { print height, width }
+		' )
+	elif have xrandr; then
+		log -d 3 "Getting current resolution with xrandr"
+		if ! size=$( eval xrandr $debug ); then
+			log -d 4 "xrandr failed"
+			return $FAILURE
+		fi
+		size=$( echo "$size" | awk '
+			sub(/.*current /, "") {
+				sub(/,.*/, "")
+				print $3, $1
+				exit
+			}
+		' )
+	fi
+
+	if [ ! "$size" ]; then
+		log -d 4 "Unable to get current resolution"
+		return $FAILURE
+	fi 
+
+	HEIGHT="${size%%[$IFS]*}"
+	WIDTH="${size#*[$IFS]}"
+
+	if [ ${HEIGHT:-0} -gt ${WIDTH:-0} ]; then
+		[ ! -e "$TALLPAPER" ] || USE_TALLPAPER=1
+	fi
+
+	return $SUCCESS
+}
+
+logres()
+{
+	log -d 2 "Current resolution (W x H) is $WIDTH x $HEIGHT"
+	if [ ${HEIGHT:-0} -gt ${WIDTH:-0} ]; then
+		log -d 2 "Portrait view detected"
+	else
+		log -d 2 "Landscape view detected"
+	fi
+}
+
+reload_desktop()
+{
+	local dir="$WALLPAPER"
+
+	# Determine if we should use portrait or landscape wallpaper
+	if getres; then
+		[ ! "$USE_TALLPAPER" ] || dir="$TALLPAPER"
+	fi
+
+	# Get a list of installed wallpapers
+	wallpapers=$( find "$dir" -mindepth 1 -maxdepth 1 -type f ) ||
+		die "Unable to list %s" "$dir"
+
+	# Pick one at random
+	nwallpapers=$( echo "$wallpapers" | sort | awk 'END{print NR}' )
+	n=$( awk -v max=$nwallpapers 'BEGIN {
+		srand()
+		srand(srand())
+		r = sprintf("%0.f", rand() * max)
+		print (r > 0 ? r : 1)
+	}' )
+	wallpaper=$( echo "$wallpapers" | awk -v n=$n 'NR==n' )
+
+	# Render the wallpaper
+	refresh_desktop
+}
+
+################################################## DESKTOP MAIN
+
+log "Started desktop worker (pid %u)" $$
+sleep 0.1 # yield
+
+#
+# Init
+#
+log -d 2 "Waiting for dbus"
+countdown=0
+countup=0
+while ! dbus_listnames | grep -q "$DBUS_WAIT_RE"; do
+	[ $countup -gt $DBUS_TIMEOUT ] && break
+	sleep 5
+	countup=$(( $countup + 5 ))
+done
+log "dbus initialized"
+
+#
+# Signal handling
+#
+trap - SIGCHLD # Default handler
+for sig in SIGINT; do
+	trap "log -d 2 'Caught %s (ignored)' $sig; continue" $sig
+done
+for sig in SIGHUP SIGQUIT SIGTERM; do
+	trap "log 'Caught %s (exiting)' $sig; exit 2" $sig
+done
+trap '
+	log "Caught SIGUSR1 -- reload desktop"
+	kill $sleep_pid
+	reload_desktop
+	continue
+' SIGUSR1
+trap '
+	log "Caught SIGUSR2 -- refresh desktop"
+	kill $sleep_pid
+	refresh_desktop
+	continue
+' SIGUSR2
+trap 'log "Worker exited (unexpectedly)"' EXIT
+
+#
+# Wait for conky to start
+#
+while : forever; do
+	check_conky
+	case $? in
+	0) break ;; # started
+	1) sleep $CONDY_DESKTOP_INTERVAL ;; # starting
+	*) die # failed to start
+	esac
+done
+
+#
+# Main loop
+#
+log -d 3 "Looping forever"
+if getres; then
+	logres
+
+	# Cache width/height to detect changes
+	_WIDTH="$WIDTH"
+	_HEIGHT="$HEIGHT"
+	_USE_TALLPAPER="$USE_TALLPAPER"
+fi
+while : forever; do
+	# Detect window manager
+	if [ $_WM_DETECT -gt 0 ]; then
+		_WM_DETECT=$(( $_WM_DETECT - 1 ))
+		names=$( dbus_listnames )
+		if echo "$names" | grep -q "$DBUS_WAIT_RE"; then
+			if echo "$names" | grep -q "$DBUS_GNOME_RE"; then
+				_GNOME=1
+				_WM_DETECT=0
+			elif echo "$names" | grep -q "$DBUS_KDE_RE"; then
+				_KDE=1
+				_WM_DETECT=0
+			fi
+		fi
+	fi
+
+	# Wallpaper interval and resolution handling
+	if [ $countdown -le 0 ]; then
+		reload_desktop
+		countdown=$CONDY_DESKTOP_INTERVAL
+	else
+		countdown=$(( $countdown - $CONDY_DESKTOP_CHECK ))
+		log -d 3 "Sleeping %s seconds" "$CONDY_DESKTOP_CHECK"
+		sleep $CONDY_DESKTOP_CHECK &
+		sleep_pid=$!
+		wait $sleep_pid || : errors ignored
+		log -d 4 "Awake"
+		if getres; then
+			changes=1
+			[ "$HEIGHT" = "$_HEIGHT" ] &&
+				[ "$WIDTH" = "$_WIDTH" ] &&
+				[ "$USE_TALLPAPER" = "$_USE_TALLPAPER" ] &&
+				changes=
+			if [ "$changes" ]; then
+				log "Detected resolution change"
+				logres
+				if [ "$_KDE" ]; then
+					# Send signal if larger resolution
+					if [ ${WIDTH:-0} -gt ${_WIDTH:-0} ] ||
+					   [ ${HEIGHT:-0} -gt ${_HEIGHT:-0} ]
+					then
+						pkill -USR1 "$CONKY_RE"
+					fi
+				fi
+				if [ "$USE_TALLPAPER" = "$_USE_TALLPAPER" ]
+				then
+					refresh_desktop
+				else
+					reload_desktop
+				fi
+				_HEIGHT="$HEIGHT"
+				_WIDTH="$WIDTH"
+				_USE_TALLPAPER="$USE_TALLPAPER"
+			fi
+		fi
+	fi
+	check_conky || die
+done
+EOF
+CONDY_DESKTOP_WORKER=$( cat <&9 )
+
+############################################################ MAIN
+
+#
+# Process command-line options
+#
+while getopts dhqv flag; do
+	case "$flag" in
+	d) DEBUG=$(( $DEBUG + 1 )) ;;
+	q) QUIET=1 ;;
+	v) VERSION="${VERSION#*: }"
+		echo "${VERSION% $}"
+		exit $SUCCESS
+		;;
+	*) usage # NOTREACHED
+	esac
+done
+shift $(( OPTIND - 1 ))
+
+cd # home directory
+
+#
+# Process command-line argument
+#
+case "$1" in
+"") usage "Argument required" ;; # NOTREACHED
+start|stop|status|reload|refresh) $1 ;;
+load|restart)
+	stop
+	start
+	;;
+*) usage "%s: Unknown argument" "$1" # NOTREACHED
+esac
+
+################################################################################
+# END
+################################################################################
