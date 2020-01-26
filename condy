@@ -3,19 +3,9 @@
 #
 # $Title: Script for managing conky and desktop wallpaper $
 # $Copyright: 2019-2020 Devin Teske. All rights reserved. $
-# $FrauBSD: condy/condy 2020-01-25 18:14:59 -0800 freebsdfrau $
+# $FrauBSD: condy/condy 2020-01-25 18:26:45 -0800 freebsdfrau $
 #
 ############################################################ ENVIRONMENT
-
-#
-# Debugging
-#
-: "${CONDY_DEBUG:=0}"
-
-#
-# X display
-#
-: "${DISPLAY:=:0}"
 
 #
 # Where to find landscape wallpaper
@@ -29,16 +19,20 @@
 : "${TALLPAPER:=Tallpaper}"
 
 #
-# Log file(s)
+# Debugging
 #
+: "${CONDY_DEBUG:=0}"
 : "${CONDY_LOG:=.condy.log}"
+
+#
+# X display
+#
+: "${DISPLAY:=:0}"
 
 ############################################################ CONFIGURATION
 
-#nohup /bin/sh -c 'dbus-monitor > monitor.$$.log 2>&1' &
-
 #
-# Conky configuration file
+# Conky configuration file(s)
 #
 CONKY_CONFIG=theme/conky/ident.conkyrc
 CONKY_GNOME_CONFIG=theme/conky/ident-gnome-vmware.conkyrc
@@ -53,17 +47,6 @@ CONDY_DESKTOP_INTERVAL=600 # 10 minutes
 CONDY_DESKTOP_CHECK=5 # seconds
 
 #
-# Wait for DBus registry elements
-# NB: Any one will trigger start or timeout
-#
-DBUS_GNOME=org.gnome.SessionManager
-DBUS_KDE=org.kde.kuiserver
-DBUS_WAIT_FOR="
-	$DBUS_GNOME
-	$DBUS_KDE
-" # END-QUOTE
-
-#
 # Timeouts
 # NB: Values are in seconds
 #
@@ -72,7 +55,7 @@ DBUS_TIMEOUT=60
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 1.0.1 $'
+VERSION='$Version: 1.0.2 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -88,6 +71,17 @@ FAILURE=1
 DEBUG=$CONDY_DEBUG		# -d
 QUIET=				# -q
 UPDATE=				# -u
+
+#
+# Wait for DBus registry elements
+# NB: Any one will trigger start or timeout
+#
+DBUS_GNOME=org.gnome.SessionManager
+DBUS_KDE=org.kde.kuiserver
+DBUS_WAIT_FOR="
+	$DBUS_GNOME
+	$DBUS_KDE
+" # END-QUOTE
 
 #
 # dbus
@@ -186,7 +180,7 @@ usage()
 	printf "Options:\n"
 	printf "$optfmt" "-d" "Enable debugging to \`$CONDY_LOG'."
 	printf "$optfmt" "" \
-		"Can be specified multiple (up to 4) times."
+		"Can be specified multiple (up to 5) times."
 	printf "$optfmt" "-h" "Print usage statement and exit."
 	printf "$optfmt" "-q" "Quiet. Hide informational messages."
 	printf "$optfmt" "-v" "Print version and exit."
@@ -208,6 +202,10 @@ start()
 		if have xauth; then
 			log "xauth list"
 			xauth list >> "$CONDY_LOG"
+		fi
+		if [ $DEBUG -ge 5 ]; then
+			log "DBus monitor log monitor.%u.log" $$
+			nohup /bin/sh -c 'dbus-monitor > monitor.$$.log 2>&1' &
 		fi
 	fi
 
