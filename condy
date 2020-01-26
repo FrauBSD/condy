@@ -3,7 +3,7 @@
 #
 # $Title: Script for managing conky and desktop wallpaper $
 # $Copyright: 2019-2020 Devin Teske. All rights reserved. $
-# $FrauBSD: condy/condy 2020-01-25 17:59:36 -0800 freebsdfrau $
+# $FrauBSD: condy/condy 2020-01-25 18:13:19 -0800 freebsdfrau $
 #
 ############################################################ ENVIRONMENT
 
@@ -186,7 +186,7 @@ usage()
 	printf "Options:\n"
 	printf "$optfmt" "-d" "Enable debugging to \`$CONDY_LOG'."
 	printf "$optfmt" "" \
-		"Can be specified multipled (up to 4) times."
+		"Can be specified multiple (up to 4) times."
 	printf "$optfmt" "-h" "Print usage statement and exit."
 	printf "$optfmt" "-q" "Quiet. Hide informational messages."
 	printf "$optfmt" "-v" "Print version and exit."
