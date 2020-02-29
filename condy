@@ -3,7 +3,7 @@
 #
 # $Title: Script for managing conky and desktop wallpaper $
 # $Copyright: 2019-2020 Devin Teske. All rights reserved. $
-# $FrauBSD: condy/condy 2020-01-25 20:48:56 -0800 freebsdfrau $
+# $FrauBSD: condy/condy 2020-02-28 20:07:15 -0800 freebsdfrau $
 #
 ############################################################ ENVIRONMENT
 
@@ -20,6 +20,12 @@
 #
 DEFAULT_CONDY_CONFIG=/etc/condy.conf
 DEFAULT_CONDY_USER_CONFIG=.condy.conf
+
+#
+# Pause/Unpause functionality
+# NB: Paths are relative to home directory
+#
+PAUSE_FILE=.condy.paused
 
 #
 # Debugging
@@ -66,7 +72,7 @@ DBUS_TIMEOUT=60
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.0 $'
+VERSION='$Version: 2.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -236,11 +242,14 @@ usage()
 	printf "$argfmt" "start" "Start conky and desktop worker(s)."
 	printf "$argfmt" "stop" "Stop conky and desktop worker(s)."
 	printf "$argfmt" "load" "Same as restart."
+	printf "$argfmt" "pause" "Pause/Unpause desktop wallpaper."
+	printf "$argfmt" "resume" "Same as pause."
 	printf "$argfmt" "status" \
 		"Display status of conky and desktop worker(s)."
 	printf "$argfmt" "restart" "Restart conky and desktop worker(s)."
 	printf "$argfmt" "reload" "Change desktop wallpaper."
 	printf "$argfmt" "refresh" "Refresh existing desktop wallpaper."
+	printf "$argfmt" "unpause" "Same as pause."
 	printf "Options:\n"
 	printf "$optfmt" "-d" "Enable debugging to \`$CONDY_LOG'."
 	printf "$optfmt" "" \
@@ -289,7 +298,7 @@ start()
 	#
 	export CONDY_DESKTOP_CHECK CONDY_DESKTOP_INTERVAL CONDY_DESKTOP_TIMEOUT
 	export CONDY_DESKTOP_WORKER CONDY_DESKTOP_WORKER_RE
-	export CONDY_CONFIG CONDY_USER_CONFIG CONDY_LOG
+	export CONDY_CONFIG CONDY_USER_CONFIG CONDY_LOG PAUSE_FILE
 	export CONDY_STARTUP CONDY_STARTUP_RE
 	export CONKY_CONFIG CONKY_GNOME_CONFIG CONKY_KDE_CONFIG CONKY_RE
 	export DBUS_GNOME_RE DBUS_KDE_RE DBUS_WAIT_RE DBUS_TIMEOUT
@@ -405,6 +414,7 @@ stop_desktop_worker()
 status()
 {
 	local pids ret=$SUCCESS
+	local paused=
 
 	if pids=$( pgrep "$CONKY_RE" ); then
 		echo "conky running (pid ${pids%%[$IFS]*})"
@@ -416,7 +426,8 @@ status()
 	fi
 
 	if pids=$( pgrep -f "$CONDY_DESKTOP_WORKER_RE" ); then
-		echo "desktop worker running (pid ${pids%%[$IFS]*})"
+		[ ! -e "$PAUSE_FILE" ] || paused=" [PAUSED]"
+		echo "desktop worker running (pid ${pids%%[$IFS]*})$paused"
 	else
 		echo "desktop worker not running"
 		ret=$FAILURE
@@ -433,6 +444,31 @@ reload()
 refresh()
 {
 	pkill -USR2 -f "$CONDY_DESKTOP_WORKER_RE"
+}
+
+pause()
+{
+	if [ -e "$PAUSE_FILE" ]; then
+		echo "Already paused."
+	else
+		:> "$PAUSE_FILE"
+		pkill -HUP -f "$CONDY_DESKTOP_WORKER_RE" && echo "Paused."
+	fi
+}
+
+resume()
+{
+	if [ -e "$PAUSE_FILE" ]; then
+		rm -f "$PAUSE_FILE"
+		pkill -HUP -f "$CONDY_DESKTOP_WORKER_RE" && echo "Resumed."
+	else
+		echo "Not paused."
+	fi
+}
+
+unpause()
+{
+	resume
 }
 
 ############################################################ WORKERS
@@ -520,6 +556,11 @@ _WIDTH=
 #
 USE_TALLPAPER=
 _USE_TALLPAPER=
+
+#
+# Miscellaneous
+#
+PAUSED=
 
 ################################################## DESKTOP FUNCTIONS
 
@@ -644,6 +685,14 @@ log "Started desktop worker (pid %u)" $$
 sleep 0.1 # yield
 
 #
+# Setup
+#
+if [ -e "$PAUSE_FILE" ]; then
+	log "Removing %s" "$PAUSE_FILE"
+	rm -f "$PAUSE_FILE"
+fi
+
+#
 # Init
 #
 log -d 2 "Waiting for dbus"
@@ -663,9 +712,20 @@ trap - SIGCHLD # Default handler
 for sig in SIGINT; do
 	trap "log -d 2 'Caught %s (ignored)' $sig; continue" $sig
 done
-for sig in SIGHUP SIGQUIT SIGTERM; do
+for sig in SIGQUIT SIGTERM; do
 	trap "log 'Caught %s (exiting)' $sig; exit 2" $sig
 done
+trap '
+	if [ "$PAUSED" ]; then
+		log "Caught SIGHUP -- unpausing desktop"
+		PAUSED=
+		kill $sleep_pid
+		continue
+	else
+		log "Caught SIGHUP -- pausing desktop"
+		PAUSED=1
+	fi
+' SIGHUP
 trap '
 	log "Caught SIGUSR1 -- reload desktop"
 	kill $sleep_pid
@@ -722,7 +782,7 @@ while : forever; do
 
 	# Wallpaper interval and resolution handling
 	if [ $countdown -le 0 ]; then
-		reload_desktop
+		[ "$PAUSED" ] || reload_desktop
 		countdown=$CONDY_DESKTOP_INTERVAL
 	else
 		countdown=$(( $countdown - $CONDY_DESKTOP_CHECK ))
@@ -794,7 +854,7 @@ shift $(( OPTIND - 1 ))
 #
 case "$1" in
 "") usage "Argument required" ;; # NOTREACHED
-start|stop|status|reload|refresh) $1 ;;
+start|stop|status|pause|resume|reload|unpause|refresh) $1 ;;
 load|restart)
 	stop
 	start
