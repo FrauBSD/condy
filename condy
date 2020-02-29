@@ -3,7 +3,7 @@
 #
 # $Title: Script for managing conky and desktop wallpaper $
 # $Copyright: 2019-2020 Devin Teske. All rights reserved. $
-# $FrauBSD: condy/condy 2020-02-28 20:21:15 -0800 freebsdfrau $
+# $FrauBSD: condy/condy 2020-02-29 06:58:11 -0800 freebsdfrau $
 #
 ############################################################ ENVIRONMENT
 
@@ -78,7 +78,7 @@ DBUS_TIMEOUT=60
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.2 $'
+VERSION='$Version: 2.3 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -132,9 +132,6 @@ CONKY_RE="^conky"
 
 ############################################################ EXPORTED FUNCTIONS
 
-#
-# FUNCTIONS
-#
 exec 9<<'EOF'
 die(){ log "$@"; exit $FAILURE; }
 emit(){ [ ! "$QUIET" ] || return $SUCCESS; echo "$@"; }
@@ -212,8 +209,60 @@ load_configs()
 
 	return $SUCCESS
 }
+
+getres()
+{
+	local size=
+	local debug=
+
+	[ $DEBUG -gt 0 ] && debug='2>> "$CONDY_LOG"'
+
+	USE_TALLPAPER=
+
+	# Try to get the current resolution
+	if have xwininfo; then
+		log -d 3 "Getting current resolution with xwininfo"
+		if ! size=$( eval xwininfo -root $debug ); then
+			log -d 4 "xwininfo failed"
+			return $FAILURE
+		fi
+		size=$( echo "$size" | awk '
+			$1 == "Width:" { width = $2 }
+			$1 == "Height:" { height = $2 }
+			END { print height, width }
+		' )
+	elif have xrandr; then
+		log -d 3 "Getting current resolution with xrandr"
+		if ! size=$( eval xrandr $debug ); then
+			log -d 4 "xrandr failed"
+			return $FAILURE
+		fi
+		size=$( echo "$size" | awk '
+			sub(/.*current /, "") {
+				sub(/,.*/, "")
+				print $3, $1
+				exit
+			}
+		' )
+	fi
+
+	if [ ! "$size" ]; then
+		log -d 4 "Unable to get current resolution"
+		return $FAILURE
+	fi 
+
+	HEIGHT="${size%%[$IFS]*}"
+	WIDTH="${size#*[$IFS]}"
+
+	if [ ${HEIGHT:-0} -gt ${WIDTH:-0} ]; then
+		[ ! -e "$TALLPAPER" ] || USE_TALLPAPER=1
+	fi
+
+	return $SUCCESS
+}
 EOF
 FUNCTIONS=$( cat <&9 )
+
 exec 9<<EOF
 load_defaults()
 {
@@ -228,6 +277,7 @@ load_defaults()
 EOF
 FUNCTIONS="$FUNCTIONS
 $( cat <&9 )"
+
 eval "$FUNCTIONS"
 
 ############################################################ FUNCTIONS
@@ -235,7 +285,7 @@ eval "$FUNCTIONS"
 usage()
 {
 	local fmt="$1"
-	local pgmfmt="Usage: %s [OPTIONS] {%s}\n"
+	local pgmfmt="Usage: %s [OPTIONS] %s\n"
 	local argfmt="\t%-10s %s\n"
 	local optfmt="\t%-10s %s\n"
 	exec >&2
@@ -243,19 +293,22 @@ usage()
 		shift 1 # fmt
 		printf "%s: $fmt\n" "$pgm" "$@"
 	fi
-	printf "$pgmfmt" "$pgm" "start|stop|load|status|restart|reload|refresh"
+	printf "$pgmfmt" "$pgm" "arg"
 	printf "Arguments:\n"
 	printf "$argfmt" "start" "Start conky and desktop worker(s)."
 	printf "$argfmt" "stop" "Stop conky and desktop worker(s)."
-	printf "$argfmt" "load" "Same as restart."
-	printf "$argfmt" "pause" "Pause/Unpause desktop wallpaper."
-	printf "$argfmt" "resume" "Same as pause."
 	printf "$argfmt" "status" \
 		"Display status of conky and desktop worker(s)."
 	printf "$argfmt" "restart" "Restart conky and desktop worker(s)."
-	printf "$argfmt" "reload" "Change desktop wallpaper."
+	printf "More Arguments:\n"
+	printf "$argfmt" "cycle" "Cycle through wallpaper."
+	printf "$argfmt" "load" "Same as restart."
+	printf "$argfmt" "pause" "Pause desktop wallpaper."
 	printf "$argfmt" "refresh" "Refresh existing desktop wallpaper."
-	printf "$argfmt" "unpause" "Same as pause."
+	printf "$argfmt" "reload" "Change desktop wallpaper."
+	printf "$argfmt" "resume" "Unpause desktop wallpaper."
+	printf "$argfmt" "set" "Set wallpaper. Requires file path."
+	printf "$argfmt" "unpause" "Same as resume."
 	printf "Options:\n"
 	printf "$optfmt" "-d" "Enable debugging to \`$CONDY_LOG'."
 	printf "$optfmt" "" \
@@ -479,10 +532,47 @@ unpause()
 
 set_wallpaper()
 {
-	if echo "$1" > "$SET_WALLPAPER_FILE"; then
-		pkill -HUP -f "$CONDY_DESKTOP_WORKER_RE" &&
-			echo "Wallpaper set."
+	local file="$1"
+
+	if [ ! "$file" ]; then
+		echo "$pgm: Missing file argument" >&2
+		return $FAILURE
+	elif [ ! -e "$file" ]; then
+		echo "$pgm: $file: No such file or directory" >&2
+		return $FAILURE
+	elif [ -d "$file" ]; then
+		echo "$pgm: $file: Is a directory" >&2
+		return $FAILURE
+	elif [ ! -r "$file" ]; then
+		echo "$pgm: $file: Permission denied" >&2
+		return $FAILURE
 	fi
+
+	if echo "$file" > "$SET_WALLPAPER_FILE"; then
+		pkill -HUP -f "$CONDY_DESKTOP_WORKER_RE" &&
+			echo "Wallpaper set to $file"
+	fi
+}
+
+cycle()
+{
+	local interval=5
+	local dir
+
+	# Load configuration files
+	load_configs
+
+	# Determine if we should use portrait or landscape wallpaper
+	dir="$WALLPAPER"
+	! getres || [ ! "$USE_TALLPAPER" ] || dir="$TALLPAPER"
+
+
+	echo "Cycling $dir (at ${interval}s intervals)..."
+	for file in "$dir"/*; do
+		[ -e "$file" ] || continue
+		set_wallpaper "$file"
+		sleep $interval
+	done
 }
 
 ############################################################ WORKERS
@@ -601,57 +691,6 @@ refresh_desktop()
 	log "Setting %s" "$wallpaper"
 	hsetroot -fill "$wallpaper" ||
 		log "Unable to set %s" "$wallpaper"
-}
-
-getres()
-{
-	local size=
-	local debug=
-
-	[ $DEBUG -gt 0 ] && debug='2>> "$CONDY_LOG"'
-
-	USE_TALLPAPER=
-
-	# Try to get the current resolution
-	if have xwininfo; then
-		log -d 3 "Getting current resolution with xwininfo"
-		if ! size=$( eval xwininfo -root $debug ); then
-			log -d 4 "xwininfo failed"
-			return $FAILURE
-		fi
-		size=$( echo "$size" | awk '
-			$1 == "Width:" { width = $2 }
-			$1 == "Height:" { height = $2 }
-			END { print height, width }
-		' )
-	elif have xrandr; then
-		log -d 3 "Getting current resolution with xrandr"
-		if ! size=$( eval xrandr $debug ); then
-			log -d 4 "xrandr failed"
-			return $FAILURE
-		fi
-		size=$( echo "$size" | awk '
-			sub(/.*current /, "") {
-				sub(/,.*/, "")
-				print $3, $1
-				exit
-			}
-		' )
-	fi
-
-	if [ ! "$size" ]; then
-		log -d 4 "Unable to get current resolution"
-		return $FAILURE
-	fi 
-
-	HEIGHT="${size%%[$IFS]*}"
-	WIDTH="${size#*[$IFS]}"
-
-	if [ ${HEIGHT:-0} -gt ${WIDTH:-0} ]; then
-		[ ! -e "$TALLPAPER" ] || USE_TALLPAPER=1
-	fi
-
-	return $SUCCESS
 }
 
 logres()
@@ -877,7 +916,7 @@ shift $(( OPTIND - 1 ))
 #
 case "$1" in
 "") usage "Argument required" ;; # NOTREACHED
-start|stop|status|pause|resume|reload|unpause|refresh) $1 ;;
+cycle|pause|refresh|reload|resume|start|status|stop|unpause) $1 ;;
 set) set_wallpaper "$2" ;;
 load|restart)
 	stop
