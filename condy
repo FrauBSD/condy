@@ -3,7 +3,7 @@
 #
 # $Title: Script for managing conky and desktop wallpaper $
 # $Copyright: 2019-2020 Devin Teske. All rights reserved. $
-# $FrauBSD: condy/condy 2020-02-28 20:07:15 -0800 freebsdfrau $
+# $FrauBSD: condy/condy 2020-02-28 20:21:15 -0800 freebsdfrau $
 #
 ############################################################ ENVIRONMENT
 
@@ -26,6 +26,12 @@ DEFAULT_CONDY_USER_CONFIG=.condy.conf
 # NB: Paths are relative to home directory
 #
 PAUSE_FILE=.condy.paused
+
+#
+# Set wallpaper functionality
+# NB: Paths are relative to home directory
+#
+SET_WALLPAPER_FILE=.condy.set_wallpaper
 
 #
 # Debugging
@@ -72,7 +78,7 @@ DBUS_TIMEOUT=60
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.1 $'
+VERSION='$Version: 2.2 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -302,7 +308,7 @@ start()
 	export CONDY_STARTUP CONDY_STARTUP_RE
 	export CONKY_CONFIG CONKY_GNOME_CONFIG CONKY_KDE_CONFIG CONKY_RE
 	export DBUS_GNOME_RE DBUS_KDE_RE DBUS_WAIT_RE DBUS_TIMEOUT
-	export DEBUG QUIET TALLPAPER WALLPAPER
+	export DEBUG QUIET SET_WALLPAPER_FILE TALLPAPER WALLPAPER
 	export DISPLAY
 	export FUNCTIONS
 	export SUCCESS FAILURE
@@ -469,6 +475,14 @@ resume()
 unpause()
 {
 	resume
+}
+
+set_wallpaper()
+{
+	if echo "$1" > "$SET_WALLPAPER_FILE"; then
+		pkill -HUP -f "$CONDY_DESKTOP_WORKER_RE" &&
+			echo "Wallpaper set."
+	fi
 }
 
 ############################################################ WORKERS
@@ -716,7 +730,16 @@ for sig in SIGQUIT SIGTERM; do
 	trap "log 'Caught %s (exiting)' $sig; exit 2" $sig
 done
 trap '
-	if [ "$PAUSED" ]; then
+	if [ -f "$SET_WALLPAPER_FILE" ]; then
+		log "Caught SIGHUP -- setting wallpaper"
+		_wallpaper=$( cat "$SET_WALLPAPER_FILE" ) &&
+			wallpaper="$_wallpaper"
+		log "Removing %s" "$SET_WALLPAPER_FILE"
+		rm -f "$SET_WALLPAPER_FILE"
+		kill $sleep_pid
+		refresh_desktop
+		continue
+	elif [ "$PAUSED" ]; then
 		log "Caught SIGHUP -- unpausing desktop"
 		PAUSED=
 		kill $sleep_pid
@@ -855,6 +878,7 @@ shift $(( OPTIND - 1 ))
 case "$1" in
 "") usage "Argument required" ;; # NOTREACHED
 start|stop|status|pause|resume|reload|unpause|refresh) $1 ;;
+set) set_wallpaper "$2" ;;
 load|restart)
 	stop
 	start
