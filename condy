@@ -3,7 +3,7 @@
 #
 # $Title: Script for managing conky and desktop wallpaper $
 # $Copyright: 2019-2020 Devin Teske. All rights reserved. $
-# $FrauBSD: condy/condy 2020-04-09 16:51:58 -0700 freebsdfrau $
+# $FrauBSD: condy/condy 2020-04-09 16:53:24 -0700 freebsdfrau $
 #
 ############################################################ ENVIRONMENT
 
@@ -78,7 +78,7 @@ DBUS_TIMEOUT=60
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.3.2 $'
+VERSION='$Version: 2.3.3 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -716,7 +716,7 @@ reload_desktop()
 	! getres || [ ! "$USE_TALLPAPER" ] || dir="$TALLPAPER"
 
 	# Get a list of installed wallpapers
-	wallpapers=$( find "$dir" -mindepth 1 -maxdepth 1 -type f ) ||
+	wallpapers=$( find "$dir/" -mindepth 1 -maxdepth 1 -type f ) ||
 		die "Unable to list %s" "$dir"
 
 	# Pick one at random
