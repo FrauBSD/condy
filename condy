@@ -3,7 +3,7 @@
 #
 # $Title: Script for managing conky and desktop wallpaper $
 # $Copyright: 2019-2020 Devin Teske. All rights reserved. $
-# $FrauBSD: condy/condy 2020-04-09 16:53:24 -0700 freebsdfrau $
+# $FrauBSD: condy/condy 2020-04-09 16:54:40 -0700 freebsdfrau $
 #
 ############################################################ ENVIRONMENT
 
@@ -78,7 +78,7 @@ DBUS_TIMEOUT=60
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.3.3 $'
+VERSION='$Version: 2.3.4 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -707,6 +707,8 @@ logres()
 reload_desktop()
 {
 	local dir
+
+	log -d 5 "Loading new desktop wallpaper"
 
 	# Load configuration files
 	load_configs
