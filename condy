@@ -3,7 +3,7 @@
 #
 # $Title: Script for managing conky and desktop wallpaper $
 # $Copyright: 2019-2020 Devin Teske. All rights reserved. $
-# $FrauBSD: condy/condy 2020-04-09 16:10:31 -0700 freebsdfrau $
+# $FrauBSD: condy/condy 2020-04-09 16:51:58 -0700 freebsdfrau $
 #
 ############################################################ ENVIRONMENT
 
@@ -78,7 +78,7 @@ DBUS_TIMEOUT=60
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.3.1 $'
+VERSION='$Version: 2.3.2 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -343,7 +343,8 @@ start()
 		fi
 		if [ $DEBUG -ge 5 ]; then
 			log "DBus monitor log monitor.%u.log" $$
-			nohup /bin/sh -c 'dbus-monitor > monitor.$$.log 2>&1' &
+			nohup /bin/sh -c 'dbus-monitor > monitor.$$.log 2>&1' \
+				> /dev/null 2>&1 &
 		fi
 	fi
 
