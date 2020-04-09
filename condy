@@ -3,7 +3,7 @@
 #
 # $Title: Script for managing conky and desktop wallpaper $
 # $Copyright: 2019-2020 Devin Teske. All rights reserved. $
-# $FrauBSD: condy/condy 2020-04-09 16:54:40 -0700 freebsdfrau $
+# $FrauBSD: condy/condy 2020-04-09 16:56:31 -0700 freebsdfrau $
 #
 ############################################################ ENVIRONMENT
 
@@ -78,7 +78,7 @@ DBUS_TIMEOUT=60
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.3.4 $'
+VERSION='$Version: 2.4 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -584,6 +584,7 @@ cycle()
 exec 9<<'EOF'
 ################################################## STARTUP GLOBALS
 
+_FVWM=
 _GNOME=
 _KDE=
 
@@ -601,24 +602,30 @@ log "Starting conky (pid %u)" $$
 countup=0
 names=
 log -d 3 "Detecting window manager"
-while : forever ; do
-	names=$( dbus_listnames )
-	echo "$names" | grep -q "$DBUS_WAIT_RE" && break
-	[ $countup -gt $DBUS_TIMEOUT ] && break
-	sleep 5
-	countup=$(( $countup + 5 ))
-done
-if echo "$names" | grep -q "$DBUS_GNOME_RE"; then
-	log -d 3 "Gnome detected"
-	config="$CONKY_GNOME_CONFIG"
-	_GNOME=1
-elif echo "$names" | grep -q "$DBUS_KDE_RE"; then
-	log -d 3 "KDE detected"
-	config="$CONKY_KDE_CONFIG"
-	_KDE=1
-else
-	log -d 3 "Unable to detect window manager"
+if pgrep -aq fvwm; then
+	log -d 3 "fvwm[2] detected"
 	config="$CONKY_CONFIG"
+	_FVWM=1
+else
+	while : forever ; do
+		names=$( dbus_listnames )
+		echo "$names" | grep -q "$DBUS_WAIT_RE" && break
+		[ $countup -gt $DBUS_TIMEOUT ] && break
+		sleep 5
+		countup=$(( $countup + 5 ))
+	done
+	if echo "$names" | grep -q "$DBUS_GNOME_RE"; then
+		log -d 3 "Gnome detected"
+		config="$CONKY_GNOME_CONFIG"
+		_GNOME=1
+	elif echo "$names" | grep -q "$DBUS_KDE_RE"; then
+		log -d 3 "KDE detected"
+		config="$CONKY_KDE_CONFIG"
+		_KDE=1
+	else
+		log -d 3 "Unable to detect window manager"
+		config="$CONKY_CONFIG"
+	fi
 fi
 
 #
@@ -644,6 +651,7 @@ CONDY_STARTUP=$( cat <&9 )
 exec 9<<'EOF'
 ################################################## DESKTOP GLOBALS
 
+_FVWM=
 _GNOME=
 _KDE=
 _WM_DETECT=3
@@ -751,15 +759,20 @@ fi
 #
 # Init
 #
-log -d 2 "Waiting for dbus"
 countdown=0
-countup=0
-while ! dbus_listnames | grep -q "$DBUS_WAIT_RE"; do
-	[ $countup -gt $DBUS_TIMEOUT ] && break
-	sleep 5
-	countup=$(( $countup + 5 ))
-done
-log "dbus initialized"
+if pgrep -aq fvwm; then
+	_FVWM=1
+	_WM_DETECT=0
+else
+	log -d 2 "Waiting for dbus"
+	countup=0
+	while ! dbus_listnames | grep -q "$DBUS_WAIT_RE"; do
+		[ $countup -gt $DBUS_TIMEOUT ] && break
+		sleep 5
+		countup=$(( $countup + 5 ))
+	done
+	log "dbus initialized"
+fi
 
 #
 # Signal handling
