@@ -2,7 +2,7 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script for managing conky and desktop wallpaper $
-# $Copyright: 2019-2020 Devin Teske. All rights reserved. $
+# $Copyright: 2019-2026 Devin Teske. All rights reserved. $
 # $FrauBSD: condy/condy 2020-04-09 16:56:31 -0700 freebsdfrau $
 #
 ############################################################ ENVIRONMENT
@@ -78,7 +78,7 @@ DBUS_TIMEOUT=60
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.4 $'
+VERSION='$Version: 2.4.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -602,8 +602,8 @@ log "Starting conky (pid %u)" $$
 countup=0
 names=
 log -d 3 "Detecting window manager"
-if pgrep -aq fvwm; then
-	log -d 3 "fvwm[2] detected"
+if pgrep -aq fvwm || pgrep -aq bvwm; then
+	log -d 3 "fvwm/bvwm detected"
 	config="$CONKY_CONFIG"
 	_FVWM=1
 else
@@ -760,7 +760,7 @@ fi
 # Init
 #
 countdown=0
-if pgrep -aq fvwm; then
+if pgrep -aq fvwm || pgrep -aq bvwm; then
 	_FVWM=1
 	_WM_DETECT=0
 else
