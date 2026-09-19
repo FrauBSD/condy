@@ -1,0 +1,45 @@
+# Sample conky rc for condy under GNOME (own_window_type desktop).
+# High-resolution landscape (1536-wide panel, 12pt; 1600-wide display).
+# Filename to use as CONKY_GNOME_CONFIG.
+# gap_y clears a typical GNOME top bar.
+# Disk names, iface ue0, and graph notes: see ident-hires.conkyrc.
+
+background no
+use_xft yes
+xftfont DejaVu Mono:size=12
+xftalpha 0.8
+out_to_console no
+update_interval 1.0
+total_run_times 0
+draw_shades no
+
+minimum_size 1536 226
+maximum_width 1536
+
+own_window yes
+own_window_type desktop
+own_window_class Conky
+own_window_argb_visual yes
+own_window_argb_value 0
+own_window_transparent yes
+own_window_colour 00000000
+own_window_hints undecorated,sticky,skip_taskbar,skip_pager,below
+
+double_buffer yes
+default_color FFFFFF
+color1 6C6C6C
+color2 2AC12A
+color3 9F9F9F
+alignment top_left
+gap_x 9
+gap_y 28
+no_buffers yes
+use_spacer none
+
+diskio_avg_samples 2
+cpu_avg_samples 2
+net_avg_samples 2
+
+TEXT
+${goto 0}${color2}$sysname ${color}${color1}$kernel${goto 228}${color1}hostname${color}${goto 322}${execi 300 hostname | awk '{nlabels = split($0,labels,/\./); if (nlabels <= 2) node = $0; else while (nlabels-- > 2) node = node ( node == "" ? "" : "." ) labels[++n]; print node }' ;}${goto 488}zroot${goto 536}${color3}${fs_used_perc /}%${color}${goto 587}${color1}${fs_bar 9,54 /}${color}${goto 654}${color3}${fs_free /}${color} ${color1}free${color}${goto 803}nda0${goto 850}${color1}${diskiograph nda0 9,54 004F00 2AC12A 0 -t}${color}${goto 979}da1${goto 917}${color1}${diskiograph da1 9,54 004F00 2AC12A 0 -t}${color}${goto 1058}cpu0${goto 1105}${color3}${cpu cpu0}%${color}${goto 1155}${color1}${cpugraph cpu0 9,54 004F00 2AC12A 0 -t}${color}${goto 1222}${color1}${execi 300 sysctl -n hw.clockrate}Hz${color}${goto 1320}down${goto 1370}${color1}${downspeedgraph ue0 9,54 004F00 2AC12A 0 -t}${color}${goto 1435}${color3}${downspeedf ue0}KiB/s${color}
+${goto 15}${color1}uptime ${color}$uptime${goto 294}${color1}ip${color}${goto 322}${addr ue0}${goto 488}mem${goto 536}${color3}$memperc%${color}${goto 587}${color1}${membar 9,54}${color}${goto 654}${color3}$mem${color} ${color1}in-use${color}${goto 813}da0${goto 850}${color1}${diskiograph da0 9,54 004F00 2AC12A 0 -t}${color}${goto 979}da2${goto 917}${color1}${diskiograph da2 9,54 004F00 2AC12A 0 -t}${color}${goto 1063}load${goto 1105}${color3}${loadavg 1}${color}${goto 1155}${color1}${loadgraph 9,54 004F00 2AC12A 0 -t}${color}${goto 1220}${color1} / ${execi 300 sysctl -n hw.ncpu}${color}${goto 1342}up${goto 1370}${color1}${upspeedgraph ue0 9,54 004F00 2AC12A 0 -t}${color}${goto 1435}${color3}${upspeedf ue0}KiB/s${color}

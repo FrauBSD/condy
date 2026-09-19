@@ -3,7 +3,7 @@
 #
 # $Title: Script for managing conky and desktop wallpaper $
 # $Copyright: 2019-2026 Devin Teske. All rights reserved. $
-# $FrauBSD: condy/condy 2026-09-19 10:29:22 -0700 Devin Teske $
+# $FrauBSD: condy/condy 2026-09-19 13:28:24 -0700 Devin Teske $
 #
 ############################################################ ENVIRONMENT
 
@@ -59,7 +59,8 @@ TALLPAPER=theme/tallpaper
 #
 # Conky configuration file(s)
 # NB: Paths are relative to home directory
-# NB: Samples ship in theme/conky (copy to ~/theme/conky)
+# NB: ident.conkyrc is 1200-wide 10pt (1280 display)
+# NB: ident-hires.conkyrc is 1536-wide 12pt (1600)
 #
 CONKY_CONFIG=theme/conky/ident.conkyrc
 CONKY_GNOME_CONFIG=theme/conky/ident-gnome.conkyrc
@@ -82,7 +83,7 @@ DBUS_TIMEOUT=60
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 3.0 $'
+VERSION='$Version: 3.1 $'
 
 pgm="${0##*/}" # Program basename
 

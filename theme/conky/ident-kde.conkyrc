@@ -1,5 +1,7 @@
 # Sample conky rc for condy under KDE (own_window_type desktop).
-# Copy this file to ~/theme/conky. Filename is CONKY_KDE_CONFIG.
+# Low-resolution landscape (1200-wide panel, 10pt; 1280-wide display).
+# Filename is CONKY_KDE_CONFIG.
+# Iface needs hand-editing; see ident.conkyrc.
 
 background no
 use_xft yes
@@ -10,7 +12,7 @@ update_interval 1.0
 total_run_times 0
 draw_shades no
 
-minimum_size 720 48
+minimum_size 1200 48
 maximum_width 1200
 
 own_window yes
@@ -38,5 +40,5 @@ cpu_avg_samples 2
 net_avg_samples 2
 
 TEXT
-${goto 0}${color2}$sysname ${color}${color1}$kernel${goto 280}${color1}host${color} $nodename${goto 520}root${goto 568}${color3}${fs_used_perc /}%${color}${goto 618}${color1}${fs_bar 8,54 /}${color}${goto 686}${color3}${fs_free /}${color} ${color1}free${color}${goto 860}cpu${goto 900}${color3}${cpu cpu0}%${color}${goto 950}${color1}${cpugraph cpu0 8,54 004F00 2AC12A 0 -t}${color}
+${goto 0}${color2}$sysname ${color}${color1}$kernel${goto 280}${color1}host${color} ${execi 300 hostname | awk '{nlabels = split($0,labels,/\./); if (nlabels <= 2) node = $0; else while (nlabels-- > 2) node = node ( node == "" ? "" : "." ) labels[++n]; print node }' ;}${goto 520}root${goto 568}${color3}${fs_used_perc /}%${color}${goto 618}${color1}${fs_bar 8,54 /}${color}${goto 686}${color3}${fs_free /}${color} ${color1}free${color}${goto 860}cpu${goto 900}${color3}${cpu cpu0}%${color}${goto 950}${color1}${cpugraph cpu0 8,54 004F00 2AC12A 0 -t}${color}
 ${goto 15}${color1}uptime ${color}$uptime${goto 280}${color1}gw${color} ${gw_iface}${goto 520}mem${goto 568}${color3}$memperc%${color}${goto 618}${color1}${membar 8,54}${color}${goto 686}${color3}$mem${color} ${color1}in-use${color}${goto 860}load${goto 900}${color3}${loadavg 1}${color}${goto 950}${color1}${loadgraph 8,54 004F00 2AC12A 0 -t}${color}

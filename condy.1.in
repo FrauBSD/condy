@@ -200,6 +200,27 @@ Seconds to wait for GNOME or KDE on the session bus.
 Default: 60.
 .El
 .Pp
+The default
+.Va CONKY_*
+samples are a 1200-wide 10pt panel
+for a 1280-wide display.
+Hires landscape samples
+.Pq 1536-wide panel for a 1600-wide display, 12pt
+are
+.Pa theme/conky/ident-hires.conkyrc ,
+.Pa ident-gnome-hires.conkyrc ,
+and
+.Pa ident-kde-hires.conkyrc .
+Point
+.Va CONKY_*
+at those files from an overlay.
+.Ic downspeedgraph ,
+.Ic downspeedf ,
+.Ic upspeedgraph ,
+and
+.Ic upspeedf
+need a literal interface name.
+.Pp
 A commented template is
 .Pa @PREFIX@/share/examples/condy/condy.conf .
 .Sh ENVIRONMENT

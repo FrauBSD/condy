@@ -21,6 +21,10 @@
 # CONKY_CONFIG=theme/conky/ident.conkyrc
 # CONKY_GNOME_CONFIG=theme/conky/ident-gnome.conkyrc
 # CONKY_KDE_CONFIG=theme/conky/ident-kde.conkyrc
+# Low-res is a 1200-wide 10pt panel for a 1280-wide display.
+# Hires (1536-wide panel, 12pt) is for a 1600-wide display;
+# also ident-gnome-hires / ident-kde-hires:
+# CONKY_CONFIG=theme/conky/ident-hires.conkyrc
 
 # CONDY_DESKTOP_INTERVAL=600
 # CONDY_DESKTOP_CHECK=5

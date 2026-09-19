@@ -1,4 +1,4 @@
-[//]: # ($FrauBSD: condy/README.md 2026-09-19 10:29:22 -0700 Devin Teske $)
+[//]: # ($FrauBSD: condy/README.md 2026-09-19 13:28:24 -0700 Devin Teske $)
 
 # condy
 
@@ -55,9 +55,15 @@ your own files in those directories; the shipped PNGs are plain gradients
 so the rotator has something to show. Rebuild them with
 `tools/mk-sample-wallpapers.py` if needed.
 
-The sample conky configs are a two-row ident panel (sysname, host, root fs,
-cpu, mem, load). They are not machine-specific. Point `CONKY_*` at your
-own rc when you have one.
+The default conky rcs are a compact two-row ident (sysname, host,
+root fs, cpu, mem, load): a 1200-wide 10pt panel for a 1280-wide display.
+Host is `hostname(1)` with the last two DNS labels peeled when there
+are more than two. Hires samples (`ident-hires.conkyrc` and gnome/kde
+variants) are a 1536-wide 12pt panel with disks and net graphs, for a
+1600-wide display. Point `CONKY_*` at those from `~/.condy.conf` if
+that matches your display. Edit disk names and the `ue0` iface;
+`downspeedgraph`, `downspeedf`, `upspeedgraph`, and `upspeedf` need
+a literal interface name.
 
 ## Configuration
 
