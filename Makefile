@@ -1,8 +1,8 @@
 ############################################################ IDENT(1)
 #
-# $Title: Makefile for installing nsadmin on non-GNU systems $
-# $Copyright: 2019 Devin Teske. All rights reserved. $
-# $FrauBSD: condy/Makefile 2020-01-25 20:48:56 -0800 freebsdfrau $
+# $Title: Makefile for installing condy on non-GNU systems $
+# $Copyright: 2019-2026 Devin Teske. All rights reserved. $
+# $FrauBSD: condy/Makefile 2026-09-18 19:46:42 -0700 Devin Teske $
 #
 ############################################################ CONFIGURATION
 
