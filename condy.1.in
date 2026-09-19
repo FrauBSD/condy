@@ -1,0 +1,291 @@
+.\"
+.\" SPDX-License-Identifier: BSD-2-Clause
+.\"
+.\" Copyright (c) 2019-2026 Devin Teske
+.\"
+.Dd September 18, 2026
+.Dt CONDY 1
+.Os
+.Sh NAME
+.Nm condy
+.Nd conky launcher and wallpaper rotator
+.Sh SYNOPSIS
+.Nm
+.Op Fl dhqv
+.Op Fl l Ar file
+.Op Fl s Ar file
+.Op Fl u Ar file
+.Ar command
+.Nm
+.Op Fl dhqv
+.Op Fl l Ar file
+.Op Fl s Ar file
+.Op Fl u Ar file
+.Cm set
+.Ar file
+.Sh DESCRIPTION
+The
+.Nm
+utility starts
+.Xr conky 1
+and a background worker that rotates the X11 desktop wallpaper with
+.Xr hsetroot 1 .
+It changes to the invoking user's home directory before doing any
+work, so every relative path below is relative to
+.Ev HOME .
+.Pp
+Window manager detection chooses which conky rc to load.
+If
+.Xr fvwm 1
+or bvwm is already running,
+.Nm
+uses
+.Va CONKY_CONFIG .
+Otherwise it waits on the session bus for GNOME or KDE and uses
+.Va CONKY_GNOME_CONFIG
+or
+.Va CONKY_KDE_CONFIG
+respectively.
+If neither appears before
+.Va DBUS_TIMEOUT
+seconds,
+.Va CONKY_CONFIG
+is used.
+.Pp
+The wallpaper worker picks a random file from
+.Va WALLPAPER
+.Pq landscape
+or
+.Va TALLPAPER
+.Pq portrait, when the screen is taller than it is wide
+and fills the root window.
+A new image is chosen every
+.Va CONDY_DESKTOP_INTERVAL
+seconds
+.Pq 600 by default .
+Resolution changes re-apply or re-pick as needed.
+.Pp
+Built-in defaults are enough to run once the sample
+.Pa theme
+under
+.Pa @PREFIX@/share/examples/condy
+is copied to
+.Pa ~/theme .
+Optional overlays, sourced as
+.Xr sh 1 ,
+may override those settings.
+The system file is read first, then the user file.
+.Sh COMMANDS
+.Bl -tag -width "restart"
+.It Cm start
+Start conky and the wallpaper worker if they are not already running.
+.It Cm stop
+Stop conky and the wallpaper worker.
+.It Cm status
+Print whether conky and the wallpaper worker are running, and whether
+rotation is paused.
+.It Cm restart , Cm load
+Stop, then start.
+.Cm load
+is the form used by the autostart desktop entry, so a leftover worker
+from a previous session does not linger.
+.It Cm cycle
+Walk every file in
+.Va WALLPAPER
+or
+.Va TALLPAPER
+at five-second intervals, calling
+.Cm set
+for each.
+.It Cm pause
+Freeze wallpaper rotation.
+Creates
+.Pa ~/.condy.paused
+and signals the worker.
+.It Cm resume , Cm unpause
+Remove
+.Pa ~/.condy.paused
+and resume rotation.
+.It Cm reload
+Pick a new random wallpaper.
+Sends
+.Dv SIGUSR1
+to the worker.
+.It Cm refresh
+Re-apply the current wallpaper.
+Sends
+.Dv SIGUSR2
+to the worker.
+.It Cm set Ar file
+Pin
+.Ar file
+as the wallpaper and signal the worker.
+.Ar file
+must exist, be readable, and not be a directory.
+.El
+.Sh OPTIONS
+The options are as follows:
+.Bl -tag -width "-s file"
+.It Fl d
+Enable debugging to
+.Pa ~/.condy.log
+.Pq or the path given by Fl l .
+May be repeated up to five times for more detail.
+.It Fl h
+Print a usage statement and exit.
+.It Fl l Ar file
+Debug log path.
+Implies
+.Fl d
+if debugging is not already enabled.
+The default is
+.Pa ~/.condy.log .
+.It Fl q
+Quiet.
+Hide informational messages.
+.It Fl s Ar file
+System configuration file.
+The default is
+.Pa @PREFIX@/etc/condy.conf .
+.It Fl u Ar file
+User configuration file.
+The default is
+.Pa ~/.condy.conf .
+.It Fl v
+Print the version and exit.
+.El
+.Sh CONFIGURATION
+Overlay files are sourced as
+.Xr sh 1 .
+Unset or omitted variables keep the built-in default.
+Paths for wallpaper directories and conky rcs are relative to
+.Ev HOME .
+The following names are recognized:
+.Bl -tag -width "CONDY_DESKTOP_INTERVAL"
+.It Va WALLPAPER
+Directory of landscape images.
+Default:
+.Pa theme/wallpaper .
+.It Va TALLPAPER
+Directory of portrait images.
+Default:
+.Pa theme/tallpaper .
+.It Va CONKY_CONFIG
+Conky rc for fvwm, bvwm, and the fallback case.
+Default:
+.Pa theme/conky/ident.conkyrc .
+.It Va CONKY_GNOME_CONFIG
+Conky rc when GNOME is detected.
+Default:
+.Pa theme/conky/ident-gnome.conkyrc .
+.It Va CONKY_KDE_CONFIG
+Conky rc when KDE is detected.
+Default:
+.Pa theme/conky/ident-kde.conkyrc .
+.It Va CONDY_DESKTOP_INTERVAL
+Seconds between random wallpaper picks.
+Default: 600.
+Should be evenly divisible by
+.Va CONDY_DESKTOP_CHECK .
+.It Va CONDY_DESKTOP_CHECK
+Seconds between worker wakeups to notice pause, resolution, and
+conky death.
+Default: 5.
+.It Va CONDY_DESKTOP_TIMEOUT
+Seconds to wait for conky or the worker to exit during
+.Cm stop .
+Default: 10.
+.It Va DBUS_TIMEOUT
+Seconds to wait for GNOME or KDE on the session bus.
+Default: 60.
+.El
+.Pp
+A commented template is
+.Pa @PREFIX@/share/examples/condy/condy.conf .
+.Sh ENVIRONMENT
+.Bl -tag -width "DISPLAY"
+.It Ev DISPLAY
+X display.
+Defaults to
+.Dq :0
+if unset.
+.It Ev HOME
+Working directory for
+.Nm
+and the base for every relative path it uses.
+.El
+.Sh FILES
+.Bl -tag -width indent
+.It Pa @PREFIX@/etc/condy.conf
+Optional system overlay.
+.It Pa ~/.condy.conf
+Optional user overlay.
+.It Pa ~/.condy.log
+Debug log when
+.Fl d
+or
+.Fl l
+is used.
+.It Pa ~/.condy.paused
+Present while wallpaper rotation is paused.
+.It Pa ~/.condy.set_wallpaper
+Written by
+.Cm set
+for the worker to read.
+.It Pa ~/theme/wallpaper
+Default landscape wallpaper directory.
+.It Pa ~/theme/tallpaper
+Default portrait wallpaper directory.
+.It Pa ~/theme/conky/ident.conkyrc
+Default conky rc
+.Pq fvwm/bvwm and fallback .
+.It Pa @PREFIX@/share/examples/condy
+Sample theme, XDG autostart desktop file, and overlay template.
+.It Pa ~/.config/autostart/condy.desktop
+Typical XDG autostart location.
+Copy
+.Pa @PREFIX@/share/examples/condy/autostart/condy.desktop
+here.
+.El
+.Sh EXIT STATUS
+.Ex -std
+.Sh EXAMPLES
+Copy the packaged samples into
+.Ev HOME
+and start
+.Nm .
+.Bd -literal -offset indent
+mkdir -p "$HOME/theme" "$HOME/.config/autostart"
+cp -Rn @PREFIX@/share/examples/condy/theme/* "$HOME/theme/"
+cp -n @PREFIX@/share/examples/condy/autostart/condy.desktop \e
+	"$HOME/.config/autostart/"
+condy load
+.Ed
+.Pp
+The following is an
+.Xr fvwm 1
+.Pq or bvwm
+configuration extract for an existing
+.Ic StartFunction ,
+used in place of the XDG desktop file:
+.Bd -literal -offset indent
+AddToFunc StartFunction
++ I Exec exec condy load
+.Ed
+.Pp
+Pin a specific image, then resume rotation later:
+.Bd -literal -offset indent
+condy set "$HOME/theme/wallpaper/sample-dusk.png"
+condy reload
+.Ed
+.Sh SEE ALSO
+.Xr conky 1 ,
+.Xr fvwm 1 ,
+.Xr hsetroot 1 ,
+.Xr sh 1
+.Sh HISTORY
+The
+.Nm
+utility appeared in FrauBSD.
+.Sh AUTHORS
+.An Devin Teske Aq Mt dteske@FreeBSD.org

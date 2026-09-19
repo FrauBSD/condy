@@ -5,4 +5,4 @@ Terminal=false
 X-GNOME-Autostart-enabled=true
 Name=condy
 GenericName=conky desktop daemon
-Comment=Advanced, highly configurable system monitor for X11
+Comment=Start conky and rotate the desktop wallpaper

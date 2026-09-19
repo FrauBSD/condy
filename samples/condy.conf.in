@@ -1,0 +1,28 @@
+# Sample condy overlay (sourced as sh).
+#
+# condy already runs from built-in defaults (meaning this file is optional).
+# Copy this file only when you want to change them:
+#
+#   User overlay (preferred over system defaults):
+#       ~/.condy.conf
+#
+#   System defaults:
+#       @PREFIX@/etc/condy.conf
+#
+# Paths below are relative to $HOME. Uncomment a line to override.
+
+# Older condy defaults were directories named Wallpaper and Tallpaper
+# directly under $HOME. Uncomment these if you still use that layout:
+# WALLPAPER=Wallpaper
+# TALLPAPER=Tallpaper
+
+# WALLPAPER=theme/wallpaper
+# TALLPAPER=theme/tallpaper
+# CONKY_CONFIG=theme/conky/ident.conkyrc
+# CONKY_GNOME_CONFIG=theme/conky/ident-gnome.conkyrc
+# CONKY_KDE_CONFIG=theme/conky/ident-kde.conkyrc
+
+# CONDY_DESKTOP_INTERVAL=600
+# CONDY_DESKTOP_CHECK=5
+# CONDY_DESKTOP_TIMEOUT=10
+# DBUS_TIMEOUT=60

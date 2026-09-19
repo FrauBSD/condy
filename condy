@@ -3,7 +3,7 @@
 #
 # $Title: Script for managing conky and desktop wallpaper $
 # $Copyright: 2019-2026 Devin Teske. All rights reserved. $
-# $FrauBSD: condy/condy 2020-04-09 16:56:31 -0700 freebsdfrau $
+# $FrauBSD: condy/condy 2026-09-19 10:29:22 -0700 Devin Teske $
 #
 ############################################################ ENVIRONMENT
 
@@ -45,21 +45,25 @@ DEFAULT_DEBUG=0
 #
 # Where to find landscape (wider than tall) wallpaper
 # NB: Paths are relative to home directory
+# NB: Sample images ship in theme/wallpaper (copy to ~/theme/wallpaper)
 #
-WALLPAPER=Wallpaper
+WALLPAPER=theme/wallpaper
 
 #
 # Where to find portrait (taller than wide) wallpaper
 # NB: Paths are relative to home directory
+# NB: Sample images ship in theme/tallpaper (copy to ~/theme/tallpaper)
 #
-TALLPAPER=Tallpaper
+TALLPAPER=theme/tallpaper
 
 #
 # Conky configuration file(s)
+# NB: Paths are relative to home directory
+# NB: Samples ship in theme/conky (copy to ~/theme/conky)
 #
 CONKY_CONFIG=theme/conky/ident.conkyrc
-CONKY_GNOME_CONFIG=theme/conky/ident-gnome-vmware.conkyrc
-CONKY_KDE_CONFIG=theme/conky/ident-kde-vmware.conkyrc
+CONKY_GNOME_CONFIG=theme/conky/ident-gnome.conkyrc
+CONKY_KDE_CONFIG=theme/conky/ident-kde.conkyrc
 
 #
 # How often (in seconds) to rotate the desktop
@@ -78,7 +82,7 @@ DBUS_TIMEOUT=60
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.4.1 $'
+VERSION='$Version: 3.0 $'
 
 pgm="${0##*/}" # Program basename
 
