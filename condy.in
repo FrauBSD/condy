@@ -3,7 +3,7 @@
 #
 # $Title: Script for managing conky and desktop wallpaper $
 # $Copyright: 2019-2026 Devin Teske. All rights reserved. $
-# $FrauBSD: condy/condy 2026-09-19 13:28:24 -0700 Devin Teske $
+# $FrauBSD: condy/condy.in 2026-09-19 13:28:24 -0700 Devin Teske $
 #
 ############################################################ ENVIRONMENT
 
@@ -18,7 +18,7 @@
 # Config file(s)
 # NB: Can be used to override below CONFIGURATION settings
 #
-DEFAULT_CONDY_CONFIG=/etc/condy.conf
+DEFAULT_CONDY_CONFIG=@PREFIX@/etc/condy.conf
 DEFAULT_CONDY_USER_CONFIG=.condy.conf
 
 #
@@ -83,7 +83,7 @@ DBUS_TIMEOUT=60
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 3.1 $'
+VERSION='$Version: 3.2 $'
 
 pgm="${0##*/}" # Program basename
 

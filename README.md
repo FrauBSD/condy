@@ -20,7 +20,8 @@ Home: [FrauBSD/condy](https://github.com/FrauBSD/condy)
 make install          # bin, man, and share/examples/condy; DESTDIR= supported
 ```
 
-After install, `man condy`. From the tree, `make` then `man ./condy.1`.
+After install, `man condy`. From the tree, `make` generates `condy`
+from `condy.in` (and `condy.1`); then `./condy` or `man ./condy.1`.
 
 Foreword for commits in this repository: run `.git-hooks/install.sh` so
 FrauBSD keywords expand.

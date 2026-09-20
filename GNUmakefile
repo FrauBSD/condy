@@ -22,15 +22,18 @@ EXAMPLEDIR=	$(DESTDIR)$(PREFIX)/share/examples/condy
 CP_F=		cp -f
 CP_R=		cp -Rf
 MKDIR_P=	mkdir -p
+NOT_EXISTS=	test ! -e
 RM_F=		rm -f
 RM_RF=		rm -rf
 RMDIR=		rmdir
 SED=		sed
+CHMOD=		chmod
 TOUCH=		touch
 PYTHON?=	python3
 
 ############################################################ OBJECTS
 
+CONDYIN=	condy.in
 CONDY=		condy
 MANIN=		condy.1.in
 MAN=		condy.1
@@ -47,7 +50,11 @@ WALLPAPERS=	theme/wallpaper/sample-dusk.png \
 
 ############################################################ TARGETS
 
-all: $(MAN) $(CONFSAMPLE) $(WALLGEN)
+all: $(CONDY) $(MAN) $(CONFSAMPLE) $(WALLGEN)
+
+$(CONDY): $(CONDYIN) GNUmakefile
+	$(SED) -e 's|@PREFIX@|$(PREFIX)|g' $(CONDYIN) > $(CONDY)
+	$(CHMOD) +x $(CONDY)
 
 $(MAN): $(MANIN) GNUmakefile
 	$(SED) -e 's|@PREFIX@|$(PREFIX)|g' $(MANIN) > $(MAN)
@@ -75,9 +82,11 @@ uninstall:
 	$(RM_RF) $(EXAMPLEDIR)
 
 clean:
-	$(RM_F) $(MAN) $(CONFSAMPLE) $(WALLPAPERS) $(WALLGEN)
-	$(RMDIR) theme/wallpaper || : errors ignored
-	$(RMDIR) theme/tallpaper || : errors ignored
+	$(RM_F) $(CONDY) $(MAN) $(CONFSAMPLE) $(WALLPAPERS) $(WALLGEN)
+	$(NOT_EXISTS) theme/wallpaper || $(RMDIR) theme/wallpaper || \
+		: errors ignored
+	$(NOT_EXISTS) theme/tallpaper || $(RMDIR) theme/tallpaper || \
+		: errors ignored
 
 ################################################################################
 # END
